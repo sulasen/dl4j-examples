@@ -19,6 +19,7 @@ import org.deeplearning4j.spark.api.RDDTrainingApproach;
 import org.deeplearning4j.spark.api.TrainingMaster;
 import org.deeplearning4j.spark.impl.multilayer.SparkDl4jMultiLayer;
 import org.deeplearning4j.spark.parameterserver.training.SharedTrainingMaster;
+import org.deeplearning4j.utilities.MnistDownloader;
 import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.dataset.DataSet;
 import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
@@ -87,6 +88,7 @@ public class MnistMLPDistributedExample {
 
         //Load the data into memory then parallelize
         //This isn't a good approach in general - but is simple to use for this example
+        MnistDownloader.download(); //Workaround for download location change since 0.9.1 release
         DataSetIterator iterTrain = new MnistDataSetIterator(batchSizePerWorker, true, 12345);
         DataSetIterator iterTest = new MnistDataSetIterator(batchSizePerWorker, true, 12345);
         List<DataSet> trainDataList = new ArrayList<>();
@@ -159,7 +161,8 @@ public class MnistMLPDistributedExample {
         }
 
         //Perform evaluation (distributed)
-        Evaluation evaluation = sparkNet.evaluate(testData);
+//        Evaluation evaluation = sparkNet.evaluate(testData);
+        Evaluation evaluation = sparkNet.doEvaluation(testData, 64, new Evaluation(10))[0]; //Work-around for 0.9.1 bug: see https://deeplearning4j.org/releasenotes
         log.info("***** Evaluation *****");
         log.info(evaluation.stats());
 

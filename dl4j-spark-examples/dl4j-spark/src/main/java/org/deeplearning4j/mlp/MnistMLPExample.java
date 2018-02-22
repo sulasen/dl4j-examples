@@ -18,6 +18,7 @@ import org.deeplearning4j.nn.weights.WeightInit;
 import org.deeplearning4j.spark.api.TrainingMaster;
 import org.deeplearning4j.spark.impl.multilayer.SparkDl4jMultiLayer;
 import org.deeplearning4j.spark.impl.paramavg.ParameterAveragingTrainingMaster;
+import org.deeplearning4j.utilities.MnistDownloader;
 import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.dataset.DataSet;
 import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
@@ -56,7 +57,7 @@ public class MnistMLPExample {
     private int batchSizePerWorker = 16;
 
     @Parameter(names = "-numEpochs", description = "Number of epochs for training")
-    private int numEpochs = 15;
+    private int numEpochs = 2;
 
     public static void main(String[] args) throws Exception {
         new MnistMLPExample().entryPoint(args);
@@ -83,6 +84,7 @@ public class MnistMLPExample {
 
         //Load the data into memory then parallelize
         //This isn't a good approach in general - but is simple to use for this example
+        MnistDownloader.download(); //Workaround for download location change since 0.9.1 release
         DataSetIterator iterTrain = new MnistDataSetIterator(batchSizePerWorker, true, 12345);
         DataSetIterator iterTest = new MnistDataSetIterator(batchSizePerWorker, true, 12345);
         List<DataSet> trainDataList = new ArrayList<>();
@@ -105,7 +107,7 @@ public class MnistMLPExample {
             .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT).iterations(1)
             .activation(Activation.LEAKYRELU)
             .weightInit(WeightInit.XAVIER)
-            .learningRate(0.02)
+            .learningRate(0.1)
             .updater(Updater.NESTEROVS)// To configure: .updater(Nesterovs.builder().momentum(0.9).build())
             .regularization(true).l2(1e-4)
             .list()
@@ -133,7 +135,8 @@ public class MnistMLPExample {
         }
 
         //Perform evaluation (distributed)
-        Evaluation evaluation = sparkNet.evaluate(testData);
+//        Evaluation evaluation = sparkNet.evaluate(testData);
+        Evaluation evaluation = sparkNet.doEvaluation(testData, 64, new Evaluation(10))[0]; //Work-around for 0.9.1 bug: see https://deeplearning4j.org/releasenotes
         log.info("***** Evaluation *****");
         log.info(evaluation.stats());
 

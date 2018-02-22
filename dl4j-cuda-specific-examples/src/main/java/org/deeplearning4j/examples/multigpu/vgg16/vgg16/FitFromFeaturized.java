@@ -1,30 +1,26 @@
 package org.deeplearning4j.examples.multigpu.vgg16.vgg16;
 
-import lombok.extern.slf4j.Slf4j;
-
-import org.deeplearning4j.eval.Evaluation;
 import org.deeplearning4j.examples.multigpu.vgg16.dataHelpers.FeaturizedPreSave;
 import org.deeplearning4j.examples.multigpu.vgg16.dataHelpers.FlowerDataSetIteratorFeaturized;
 import org.deeplearning4j.nn.api.OptimizationAlgorithm;
 import org.deeplearning4j.nn.conf.Updater;
-import org.deeplearning4j.nn.conf.distribution.NormalDistribution;
 import org.deeplearning4j.nn.conf.layers.OutputLayer;
 import org.deeplearning4j.nn.graph.ComputationGraph;
 import org.deeplearning4j.nn.modelimport.keras.InvalidKerasConfigurationException;
 import org.deeplearning4j.nn.modelimport.keras.UnsupportedKerasConfigurationException;
-import org.deeplearning4j.nn.modelimport.keras.trainedmodels.TrainedModelHelper;
-import org.deeplearning4j.nn.modelimport.keras.trainedmodels.TrainedModels;
 import org.deeplearning4j.nn.transferlearning.FineTuneConfiguration;
 import org.deeplearning4j.nn.transferlearning.TransferLearning;
 import org.deeplearning4j.nn.transferlearning.TransferLearningHelper;
 import org.deeplearning4j.nn.weights.WeightInit;
 import org.deeplearning4j.parallelism.ParallelWrapper;
+import org.deeplearning4j.zoo.ZooModel;
+import org.deeplearning4j.zoo.model.VGG16;
 import org.nd4j.jita.conf.CudaEnvironment;
 import org.nd4j.linalg.activations.Activation;
-import org.nd4j.linalg.api.environment.Nd4jEnvironment;
 import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.lossfunctions.LossFunctions;
+import org.slf4j.Logger;
 
 import java.io.IOException;
 
@@ -41,13 +37,13 @@ import java.io.IOException;
  * Since the helper avoids the forward pass through the frozen layers we save on computation time when running multiple epochs.
  * In this manner, users can iterate quickly tweaking learning rates, weight initialization etc` to settle on a model that gives good results.
  */
-@Slf4j
 public class FitFromFeaturized {
 
     public static final String featureExtractionLayer = FeaturizedPreSave.featurizeExtractionLayer;
     protected static final long seed = 12345;
     protected static final int numClasses = 5;
     protected static final int nEpochs = 3;
+    private static final Logger log = org.slf4j.LoggerFactory.getLogger(FitFromFeaturized.class);
 
     public static void main(String [] args) throws IOException, InvalidKerasConfigurationException, UnsupportedKerasConfigurationException {
 
@@ -66,9 +62,9 @@ public class FitFromFeaturized {
         //Import vgg
         //Note that the model imported does not have an output layer (check printed summary)
         //  nor any training related configs (model from keras was imported with only weights and json)
-        TrainedModelHelper modelImportHelper = new TrainedModelHelper(TrainedModels.VGG16);
         log.info("\n\nLoading org.deeplearning4j.transferlearning.vgg16...\n\n");
-        ComputationGraph vgg16 = modelImportHelper.loadModel();
+        ZooModel zooModel = new VGG16();
+        ComputationGraph vgg16 = (ComputationGraph) zooModel.initPretrained();
         log.info(vgg16.summary());
 
         //Decide on a fine tune configuration to use.

@@ -10,6 +10,7 @@ import org.datavec.image.recordreader.ImageRecordReader;
 import org.datavec.image.transform.FlipImageTransform;
 import org.datavec.image.transform.ImageTransform;
 import org.datavec.image.transform.WarpImageTransform;
+import org.deeplearning4j.api.storage.StatsStorage;
 import org.deeplearning4j.datasets.datavec.RecordReaderDataSetIterator;
 import org.deeplearning4j.datasets.iterator.MultipleEpochsIterator;
 import org.deeplearning4j.eval.Evaluation;
@@ -23,7 +24,11 @@ import org.deeplearning4j.nn.conf.inputs.InvalidInputTypeException;
 import org.deeplearning4j.nn.conf.layers.*;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
+import org.deeplearning4j.optimize.api.IterationListener;
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
+import org.deeplearning4j.ui.api.UIServer;
+import org.deeplearning4j.ui.stats.StatsListener;
+import org.deeplearning4j.ui.storage.InMemoryStatsStorage;
 import org.deeplearning4j.util.ModelSerializer;
 import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.dataset.DataSet;
@@ -40,7 +45,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
-import static org.bytedeco.javacpp.opencv_imgproc.COLOR_BGR2YCrCb;
+import static java.lang.Math.toIntExact;
 
 /**
  * Animal Classification
@@ -64,19 +69,17 @@ public class AnimalsClassification {
     protected static int height = 100;
     protected static int width = 100;
     protected static int channels = 3;
-    protected static int numExamples = 80;
-    protected static int numLabels = 4;
     protected static int batchSize = 20;
 
     protected static long seed = 42;
     protected static Random rng = new Random(seed);
-    protected static int listenerFreq = 1;
     protected static int iterations = 1;
     protected static int epochs = 50;
     protected static double splitTrainTest = 0.8;
     protected static boolean save = false;
 
     protected static String modelType = "AlexNet"; // LeNet, AlexNet or Custom but you need to fill it out
+    private int numLabels;
 
     public void run(String[] args) throws Exception {
 
@@ -90,6 +93,8 @@ public class AnimalsClassification {
         ParentPathLabelGenerator labelMaker = new ParentPathLabelGenerator();
         File mainPath = new File(System.getProperty("user.dir"), "dl4j-examples/src/main/resources/animals/");
         FileSplit fileSplit = new FileSplit(mainPath, NativeImageLoader.ALLOWED_FORMATS, rng);
+        int numExamples = toIntExact(fileSplit.length());
+        numLabels = fileSplit.getRootDir().listFiles(File::isDirectory).length; //This only works if your root is clean: only label subdirs.
         BalancedPathFilter pathFilter = new BalancedPathFilter(rng, labelMaker, numExamples, numLabels, batchSize);
 
         /**
@@ -136,8 +141,11 @@ public class AnimalsClassification {
                 throw new InvalidInputTypeException("Incorrect model provided.");
         }
         network.init();
-        network.setListeners(new ScoreIterationListener(listenerFreq));
-
+       // network.setListeners(new ScoreIterationListener(listenerFreq));
+        UIServer uiServer = UIServer.getInstance();
+        StatsStorage statsStorage = new InMemoryStatsStorage();
+        uiServer.attach(statsStorage);
+        network.setListeners((IterationListener)new StatsListener( statsStorage),new ScoreIterationListener(iterations));
         /**
          * Data Setup -> define how to load data into net:
          *  - recordReader = the reader that loads and converts image data pass in inputSplit to initialize
@@ -273,7 +281,6 @@ public class AnimalsClassification {
             .lrPolicySteps(100000)
             .regularization(true)
             .l2(5 * 1e-4)
-            .miniBatch(false)
             .list()
             .layer(0, convInit("cnn1", channels, 96, new int[]{11, 11}, new int[]{4, 4}, new int[]{3, 3}, 0))
             .layer(1, new LocalResponseNormalization.Builder().name("lrn1").build())
